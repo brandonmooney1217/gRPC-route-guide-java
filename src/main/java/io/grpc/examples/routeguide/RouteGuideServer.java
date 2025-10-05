@@ -71,7 +71,6 @@ public class RouteGuideServer {
         RouteGuideServer server = new RouteGuideServer(8980);
         server.start();
         server.blockUntilShutdown();
-
     }
 
     private static class RouteGuideService extends RouteGuideGrpc.RouteGuideImplBase {
@@ -87,6 +86,29 @@ public class RouteGuideServer {
             responseObserver.onNext(feature);
             responseObserver.onCompleted();
         }
+
+        @Override
+        public void listFeatures(final Rectangle rectangle, StreamObserver<Feature> responseObserver) {
+            for (Feature feature: features) {
+                if (isFeatureInRectangle(feature, rectangle)) {
+                    responseObserver.onNext(feature);
+                }
+            }
+            responseObserver.onCompleted();
+        }
+
+        private boolean isFeatureInRectangle(Feature feature, final Rectangle rectangle) {
+            Point lo = rectangle.getLo();
+            Point hi = rectangle.getHi();
+            int lat = feature.getLocation().getLatitude();
+            int lon = feature.getLocation().getLongitude();
+
+            return lat >= Math.min(lo.getLatitude(), hi.getLatitude())
+                && lat <= Math.max(lo.getLatitude(), hi.getLatitude())
+                && lon >= Math.min(lo.getLongitude(), hi.getLongitude())
+                && lon <= Math.max(lo.getLongitude(), hi.getLongitude());
+        }
+
 
         private Feature checkFeature(final Point point) {
             for (Feature feature: features) {

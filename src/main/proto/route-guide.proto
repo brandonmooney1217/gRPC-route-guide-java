@@ -10,6 +10,10 @@ package routeguide;
 service RouteGuide {
 	// Simple RPC that obtains the feature at a given position.
 	rpc GetFeature(Point) returns (Feature) {}
+
+  // Server-side RPC. Input is rectangle and returns a stream
+  // of features with rectangle
+  rpc ListFeatures(Rectangle) returns (stream Feature){}
 }
 
 // Points are represented as latitude-longitude pairs in the E7 representation
