@@ -1,0 +1,74 @@
+{
+  "feature": [
+    {
+      "location": {
+        "latitude": 409146138,
+        "longitude": -746188906
+      },
+      "name": "Berkshire Valley Management Area Trail, Jefferson, NJ, USA"
+    },
+    {
+      "location": {
+        "latitude": 411633897,
+        "longitude": -746118064
+      },
+      "name": "U.S. 6, Shohola, PA, USA"
+    },
+    {
+      "location": {
+        "latitude": 413337150,
+        "longitude": -743067823
+      },
+      "name": "5 Conners Road, Kingston, NY, USA"
+    },
+    {
+      "location": {
+        "latitude": 418465462,
+        "longitude": -746859398
+      },
+      "name": "Mid Hudson Psychiatric Center, New Hampton, NY, USA"
+    },
+    {
+      "location": {
+        "latitude": 419203632,
+        "longitude": -744370163
+      },
+      "name": "287 Flugertown Road, Livingston Manor, NY, USA"
+    },
+    {
+      "location": {
+        "latitude": 419999544,
+        "longitude": -740371136
+      },
+      "name": "4001 Tremley Point Road, Linden, NJ, USA"
+    },
+    {
+      "location": {
+        "latitude": 416534365,
+        "longitude": -743115730
+      },
+      "name": "352 South Mountain Road, Wallkill, NY, USA"
+    },
+    {
+      "location": {
+        "latitude": 412144655,
+        "longitude": -743949739
+      },
+      "name": "Bailey Turn Road, Harriman, NY, USA"
+    },
+    {
+      "location": {
+        "latitude": 405047245,
+        "longitude": -745069790
+      },
+      "name": "193-199 Wawayanda Road, Hewitt, NJ, USA"
+    },
+    {
+      "location": {
+        "latitude": 403966326,
+        "longitude": -742493884
+      },
+      "name": "406-496 Ward Avenue, Pine Bush, NY, USA"
+    }
+  ]
+}

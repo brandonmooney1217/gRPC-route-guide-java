@@ -1,0 +1,40 @@
+package io.grpc.examples.routeguide;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.util.List;
+
+import com.google.protobuf.util.JsonFormat;
+
+public class RouteGuideUtil {
+     /**
+   * Parses the JSON input file containing the list of features.
+   */
+  public static List<Feature> parseFeatures(URL file) throws IOException {
+    InputStream input = file.openStream();
+    try {
+      Reader reader = new InputStreamReader(input, Charset.forName("UTF-8"));
+      try {
+        FeatureDatabase.Builder database = FeatureDatabase.newBuilder();
+        JsonFormat.parser().merge(reader, database);
+        return database.getFeatureList();
+      } finally {
+        reader.close();
+      }
+    } finally {
+      input.close();
+    }
+  }
+
+    /**
+   * Gets the default features file from classpath.
+   */
+  public static URL getDefaultFeaturesFile() {
+    return RouteGuideServer.class.getResource("route_guide_db.json");
+  }
+    
+}
