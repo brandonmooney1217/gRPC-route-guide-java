@@ -11,6 +11,23 @@ import java.util.List;
 import com.google.protobuf.util.JsonFormat;
 
 public class RouteGuideUtil {
+
+
+  private static final double COORD_FACTOR = 1e7;
+
+  /**
+   * Gets the latitude for the given point.
+   */
+  public static double getLatitude(Point location) {
+    return location.getLatitude() / COORD_FACTOR;
+  }
+
+  /**
+   * Gets the longitude for the given point.
+   */
+  public static double getLongitude(Point location) {
+    return location.getLongitude() / COORD_FACTOR;
+  }
      /**
    * Parses the JSON input file containing the list of features.
    */
@@ -35,6 +52,10 @@ public class RouteGuideUtil {
    */
   public static URL getDefaultFeaturesFile() {
     return RouteGuideServer.class.getResource("route_guide_db.json");
+  }
+
+  public static boolean exists(Feature feature) {
+    return feature != null && !feature.getName().isEmpty();
   }
     
 }

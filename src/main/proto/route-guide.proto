@@ -14,6 +14,11 @@ service RouteGuide {
   // Server-side RPC. Input is rectangle and returns a stream
   // of features with rectangle
   rpc ListFeatures(Rectangle) returns (stream Feature){}
+
+  // Client-side stream. Input is a stream of points and output
+  // is summary of the route
+  rpc RecordRoute(stream Point) returns (RouteSummary) {}
+
 }
 
 // Points are represented as latitude-longitude pairs in the E7 representation
@@ -37,5 +42,12 @@ message Feature {
 
 message FeatureDatabase {
   repeated Feature feature = 1;
+}
+
+message RouteSummary {
+  // number of points visited
+  int32 point_count = 1;
+  // number of known features visited
+  int32 feature_count = 2;
 }
 

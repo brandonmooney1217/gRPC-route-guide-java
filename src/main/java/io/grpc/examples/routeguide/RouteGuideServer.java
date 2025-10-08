@@ -97,6 +97,38 @@ public class RouteGuideServer {
             responseObserver.onCompleted();
         }
 
+        @Override
+        public StreamObserver<Point> recordRoute(StreamObserver<RouteSummary> responseObserver) {
+            
+            return new StreamObserver<Point>() {
+
+                int pointCount = 0;
+                int featureCount = 0;
+
+                @Override
+                public void onNext(Point value) {
+                    pointCount++;
+                    if (RouteGuideUtil.exists(checkFeature(value))) {
+                        featureCount++;
+                    }
+                }
+                @Override
+                public void onError(Throwable t) {
+                    logger.warning("recordRoute cancelled");
+                }
+                @Override
+                public void onCompleted() {
+                    responseObserver.onNext(RouteSummary.newBuilder()
+                        .setFeatureCount(featureCount)
+                        .setPointCount(pointCount)
+                        .build());
+
+                    responseObserver.onCompleted();
+                }
+            };
+            
+        }
+
         private boolean isFeatureInRectangle(Feature feature, final Rectangle rectangle) {
             Point lo = rectangle.getLo();
             Point hi = rectangle.getHi();

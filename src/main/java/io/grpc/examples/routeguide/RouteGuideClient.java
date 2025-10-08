@@ -1,9 +1,13 @@
 package io.grpc.examples.routeguide;
 
+import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.Random;
 
 import io.grpc.Channel;
 import io.grpc.Grpc;
@@ -11,12 +15,15 @@ import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
 import io.grpc.examples.routeguide.RouteGuideGrpc.RouteGuideBlockingStub;
 import io.grpc.examples.routeguide.RouteGuideGrpc.RouteGuideStub;
+import io.grpc.stub.StreamObserver;
 
 public class RouteGuideClient {
 
     private static final Logger logger = Logger.getLogger(RouteGuideClient.class.getName());
     private final RouteGuideBlockingStub blockingStub;
     private final RouteGuideStub stub;
+    private Random random = new Random();
+
 
     public RouteGuideClient(Channel channel) {
         blockingStub = RouteGuideGrpc.newBlockingStub(channel);
@@ -60,7 +67,57 @@ public class RouteGuideClient {
         info("ListFeatures completed");
     }
 
-    public static void main(String[] args) throws InterruptedException {
+    public void recordRoute(List<Feature> features, int points) throws InterruptedException {
+        info("*** RecordRoute");
+        final CountDownLatch finishLatch = new CountDownLatch(1);
+
+        StreamObserver<RouteSummary> responseObserver = new StreamObserver<RouteSummary>() {
+
+            @Override
+            public void onNext(RouteSummary summary) {
+                info("Finished trip with {0} points. Passed {1} features.",
+                    summary.getPointCount(), summary.getFeatureCount());
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                logger.log(Level.WARNING, "RecordRoute failed: {0}", t.getMessage());
+                finishLatch.countDown();
+            }
+
+            @Override
+            public void onCompleted() {
+                info("Finished RecordRoute");
+                finishLatch.countDown();
+            }
+
+        };
+
+        StreamObserver<Point> requestObserver = stub.recordRoute(responseObserver);
+        try {
+        // Send numPoints points randomly selected from the features list.
+        for (int i = 0; i < points; ++i) {
+            int index = random.nextInt(features.size());
+            Point point = features.get(index).getLocation();
+            info("Visiting point {0}, {1}", RouteGuideUtil.getLatitude(point),
+                RouteGuideUtil.getLongitude(point));
+            requestObserver.onNext(point);
+            // Sleep for a bit before sending the next one.
+            Thread.sleep(random.nextInt(1000) + 500);
+        }
+        } catch (RuntimeException e) {
+            // Cancel RPC
+            requestObserver.onError(e);
+            throw e;
+        }
+        // Mark the end of requests
+        requestObserver.onCompleted();
+
+        // Wait for server to finish and send summary
+        finishLatch.await(1, TimeUnit.MINUTES);
+    }
+
+    public static void main(String[] args) throws InterruptedException, IOException {
         String target = "localhost:8980";
         if (args.length > 0) {
             if ("--help".equals(args[0])) {
@@ -80,6 +137,11 @@ public class RouteGuideClient {
             client.getFeature(409146138, -746188906);
 
             client.listFeatures(400000000, -750000000, 420000000, -730000000);
+
+            List<Feature> features = RouteGuideUtil.parseFeatures(RouteGuideUtil.getDefaultFeaturesFile());
+
+            client.recordRoute(features, 10);
+
         } finally {
             channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
         }
