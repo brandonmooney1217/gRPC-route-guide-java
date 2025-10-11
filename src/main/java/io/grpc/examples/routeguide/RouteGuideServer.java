@@ -10,6 +10,7 @@ import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.examples.routeguide.header.HeaderServerInterceptor;
 import io.grpc.stub.StreamObserver;
 
 public class RouteGuideServer {
@@ -17,6 +18,7 @@ public class RouteGuideServer {
 
     private final int port;
     private final Server server;
+    private final HeaderServerInterceptor headerServerInterceptor;
 
     public RouteGuideServer(int port) throws IOException {
         this(port, RouteGuideUtil.getDefaultFeaturesFile());
@@ -30,7 +32,12 @@ public class RouteGuideServer {
 
     public RouteGuideServer(ServerBuilder<?> serverBuilder, int port, Collection<Feature> features) {
         this.port = port;
-        server = serverBuilder.addService(new RouteGuideService(features)).build();
+        this.headerServerInterceptor = new HeaderServerInterceptor();
+
+        server = serverBuilder
+            .addService(new RouteGuideService(features))
+            .intercept(headerServerInterceptor)
+            .build();
     }
 
     public void start () throws IOException {

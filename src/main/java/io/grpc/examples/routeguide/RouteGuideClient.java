@@ -7,6 +7,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import org.checkerframework.checker.units.qual.h;
+
 import java.util.Random;
 
 import io.grpc.Channel;
@@ -15,6 +18,7 @@ import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
 import io.grpc.examples.routeguide.RouteGuideGrpc.RouteGuideBlockingStub;
 import io.grpc.examples.routeguide.RouteGuideGrpc.RouteGuideStub;
+import io.grpc.examples.routeguide.header.HeaderClientInterceptor;
 import io.grpc.stub.StreamObserver;
 
 public class RouteGuideClient {
@@ -23,11 +27,15 @@ public class RouteGuideClient {
     private final RouteGuideBlockingStub blockingStub;
     private final RouteGuideStub stub;
     private Random random = new Random();
+    private final HeaderClientInterceptor headerClientInterceptor;
 
 
     public RouteGuideClient(Channel channel) {
+        this.headerClientInterceptor = new HeaderClientInterceptor();
+
         blockingStub = RouteGuideGrpc.newBlockingStub(channel);
-        stub = RouteGuideGrpc.newStub(channel);
+        stub = RouteGuideGrpc.newStub(channel)
+            .withInterceptors(headerClientInterceptor);
     }
 
     public void getFeature(int latitude, int longitude) {
