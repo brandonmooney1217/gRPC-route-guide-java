@@ -1,0 +1,22 @@
+{
+  "methodConfig": [
+    {
+      "name": [
+        {
+          "service": "routeguide.RouteGuide",
+          "method": "GetFeature"
+        }
+      ],
+
+      "hedgingPolicy": {
+        "maxAttempts": 3,
+        "hedgingDelay": "1s"
+      }
+    }
+  ],
+
+  "retryThrottling": {
+    "maxTokens": 10,
+    "tokenRatio": 0.1
+  }
+}

@@ -11,6 +11,7 @@ import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.examples.routeguide.header.HeaderServerInterceptor;
+import io.grpc.examples.routeguide.interceptor.LatencyInjectionInterceptor;
 import io.grpc.stub.StreamObserver;
 
 public class RouteGuideServer {
@@ -36,6 +37,7 @@ public class RouteGuideServer {
 
         server = serverBuilder
             .addService(new RouteGuideService(features))
+            .intercept(new LatencyInjectionInterceptor())
             .intercept(headerServerInterceptor)
             .build();
     }

@@ -1,8 +1,11 @@
 package io.grpc.examples.routeguide;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -12,10 +15,13 @@ import org.checkerframework.checker.units.qual.h;
 
 import java.util.Random;
 
+import com.google.common.collect.ImmutableMap;
+
 import io.grpc.Channel;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.examples.routeguide.RouteGuideGrpc.RouteGuideBlockingStub;
 import io.grpc.examples.routeguide.RouteGuideGrpc.RouteGuideStub;
 import io.grpc.examples.routeguide.header.HeaderClientInterceptor;
@@ -33,7 +39,9 @@ public class RouteGuideClient {
     public RouteGuideClient(Channel channel) {
         this.headerClientInterceptor = new HeaderClientInterceptor();
 
-        blockingStub = RouteGuideGrpc.newBlockingStub(channel);
+        blockingStub = RouteGuideGrpc.newBlockingStub(channel)
+            .withInterceptors(headerClientInterceptor);
+            
         stub = RouteGuideGrpc.newStub(channel)
             .withInterceptors(headerClientInterceptor);
     }
@@ -137,18 +145,29 @@ public class RouteGuideClient {
             target = args[0];
         }
 
-        ManagedChannel channel =
-            Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
+        // Load the hedging service config
+        String hedgingConfigJson = new String(
+            Files.readAllBytes(Paths.get("src/main/java/io/grpc/examples/util/hedging_service_config.json"))
+        );
+
+        Map<String, ?> hedgingServiceConfig = new com.google.gson.Gson()
+            .fromJson(hedgingConfigJson, Map.class);
+
+        ManagedChannel channel = ManagedChannelBuilder.forTarget(target)
+            .defaultServiceConfig(hedgingServiceConfig)
+            .enableRetry()
+            .usePlaintext()
+            .build();
 
         try {
             RouteGuideClient client = new RouteGuideClient(channel);
             client.getFeature(409146138, -746188906);
 
-            client.listFeatures(400000000, -750000000, 420000000, -730000000);
+            // client.listFeatures(400000000, -750000000, 420000000, -730000000);
 
-            List<Feature> features = RouteGuideUtil.parseFeatures(RouteGuideUtil.getDefaultFeaturesFile());
+            // List<Feature> features = RouteGuideUtil.parseFeatures(RouteGuideUtil.getDefaultFeaturesFile());
 
-            client.recordRoute(features, 10);
+            // client.recordRoute(features, 10);
 
         } finally {
             channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
