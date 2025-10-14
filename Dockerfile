@@ -1,7 +1,7 @@
 # Multi-stage build for RouteGuide gRPC Server
 
 # Stage 1: Build the application
-FROM maven:3.8-openjdk-11-slim AS build
+FROM --platform=linux/amd64 maven:3.8-openjdk-11-slim AS build
 WORKDIR /app
 
 # Copy pom.xml and download dependencies
@@ -13,7 +13,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Stage 2: Create runtime image
-FROM openjdk:11-jre-slim
+FROM --platform=linux/amd64 openjdk:11-jre-slim
 WORKDIR /app
 
 # Copy the fat JAR from build stage

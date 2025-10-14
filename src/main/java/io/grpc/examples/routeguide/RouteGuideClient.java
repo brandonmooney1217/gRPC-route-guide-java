@@ -156,7 +156,7 @@ public class RouteGuideClient {
         ManagedChannel channel = ManagedChannelBuilder.forTarget(target)
             .defaultServiceConfig(hedgingServiceConfig)
             .enableRetry()
-            // .usePlaintext() // Commented out for HTTPS/TLS connection to ALB
+            // .usePlaintext() // For testing without TLS
             .overrideAuthority("brandon-mooney.com") // Override to match SSL certificate
             .build();
 

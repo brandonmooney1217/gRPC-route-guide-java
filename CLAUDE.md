@@ -41,7 +41,9 @@ DOCKER_BUILDKIT=0 docker build -t routeguide-grpc:latest .
 docker run -p 8980:8980 routeguide-grpc:latest
 ```
 
-Note: DOCKER_BUILDKIT=0 is required due to build configuration.
+**Note**: DOCKER_BUILDKIT=0 is required due to build configuration.
+
+**Important for Apple Silicon (M1/M2 Macs)**: The Dockerfile includes `--platform=linux/amd64` to ensure compatibility with AWS ECS Fargate (x86_64). Building without this will cause "exec format error" in ECS.
 
 ## Architecture
 
@@ -52,7 +54,7 @@ The service contract is defined in [src/main/proto/route-guide.proto](src/main/p
 [RouteGuideServer](src/main/java/io/grpc/examples/routeguide/RouteGuideServer.java) contains:
 - **RouteGuideService**: Inner class implementing the gRPC service methods
 - **Interceptor chain**: Applied in order (LatencyInjectionInterceptor → HeaderServerInterceptor)
-- **Feature loading**: Loads geographical features from `route_guide_db.json` at startup
+- **Data Storage**: Uses AWS DynamoDB with geohash-based partitioning for geographical feature lookups
 
 ### Client Architecture
 [RouteGuideClient](src/main/java/io/grpc/examples/routeguide/RouteGuideClient.java) demonstrates:
@@ -87,9 +89,10 @@ The [hedging_service_config.json](src/main/java/io/grpc/examples/routeguide/util
 - **RecordRoute**: Client streams points, server counts total points and how many matched known features
 
 ### Data Flow
-1. Features are loaded from `src/main/resources/io/grpc/examples/routeguide/route_guide_db.json` at server startup
+1. Features are stored in AWS DynamoDB table `RouteGuideFeatures` with geohash-based partitioning
 2. Coordinates use E7 representation (multiplied by 10^7 for precision)
-3. [RouteGuideUtil](src/main/java/io/grpc/examples/routeguide/RouteGuideUtil.java) provides helper methods for coordinate conversion and feature parsing
+3. [FeatureRepository](src/main/java/io/grpc/examples/routeguide/db/FeatureRepository.java) handles DynamoDB queries using 6-character geohash partition keys
+4. [DynamoDbClientFactory](src/main/java/io/grpc/examples/routeguide/db/DynamoDbClientFactory.java) manages AWS SDK connections using DefaultCredentialsProvider
 
 ### Maven Configuration Notes
 - Uses `protobuf-maven-plugin` to auto-generate Java classes from .proto files
@@ -97,3 +100,42 @@ The [hedging_service_config.json](src/main/java/io/grpc/examples/routeguide/util
 - Requires Java 11+
 - gRPC version: 1.60.0
 - Protobuf version: 3.25.1
+- AWS SDK v2: 2.20.0
+- Geohash library: ch.hsr:geohash:1.4.0
+
+## AWS Deployment (ECS/ECR)
+
+### Prerequisites
+- DynamoDB table `RouteGuideFeatures` in us-east-1
+- ECS Task Role with DynamoDB permissions (GetItem, Query, BatchWriteItem, PutItem)
+- ECR repository: `595188147821.dkr.ecr.us-east-1.amazonaws.com/routeguide-grpc`
+
+### Deploy to ECS
+```bash
+# Build and push (from Mac with Apple Silicon)
+mvn clean package -DskipTests
+DOCKER_BUILDKIT=0 docker build -t routeguide-grpc:latest .
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 595188147821.dkr.ecr.us-east-1.amazonaws.com
+docker tag routeguide-grpc:latest 595188147821.dkr.ecr.us-east-1.amazonaws.com/routeguide-grpc:latest
+docker push 595188147821.dkr.ecr.us-east-1.amazonaws.com/routeguide-grpc:latest
+
+# Update task definition and service
+aws ecs register-task-definition --cli-input-json file://task-definition.json
+aws ecs update-service --cluster routeguide-cluster --service routeguide-service --task-definition routeguide-task --force-new-deployment
+
+# Monitor deployment
+aws logs tail /ecs/routeguide --follow
+```
+
+### ECS Configuration
+- **Cluster**: routeguide-cluster
+- **Service**: routeguide-service
+- **Task Definition**: routeguide-task
+- **Execution Role**: ecsTaskExecutionRole (for pulling images, writing logs)
+- **Task Role**: RouteGuideECSTaskRole (for DynamoDB access)
+
+### Data Migration
+To load initial data from JSON into DynamoDB:
+```bash
+java -cp target/route-guide-1.0-SNAPSHOT.jar io.grpc.examples.routeguide.db.DataMigration
+```

@@ -10,6 +10,8 @@ import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.examples.routeguide.db.DynamoDbClientFactory;
+import io.grpc.examples.routeguide.db.FeatureRepository;
 import io.grpc.examples.routeguide.header.HeaderServerInterceptor;
 import io.grpc.examples.routeguide.interceptor.LatencyInjectionInterceptor;
 import io.grpc.stub.StreamObserver;
@@ -22,21 +24,18 @@ public class RouteGuideServer {
     private final HeaderServerInterceptor headerServerInterceptor;
 
     public RouteGuideServer(int port) throws IOException {
-        this(port, RouteGuideUtil.getDefaultFeaturesFile());
+        this(Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create()), port);
     }
 
-    public RouteGuideServer(int port, URL featureFile) throws IOException {
-        this(Grpc.newServerBuilderForPort(
-            port, InsecureServerCredentials.create()),
-            port, RouteGuideUtil.parseFeatures(featureFile));
-    }
-
-    public RouteGuideServer(ServerBuilder<?> serverBuilder, int port, Collection<Feature> features) {
+    public RouteGuideServer(ServerBuilder<?> serverBuilder, int port) {
         this.port = port;
         this.headerServerInterceptor = new HeaderServerInterceptor();
 
+        // Create repository for DynamoDB access
+        FeatureRepository repository = DynamoDbClientFactory.createFeatureRepository();
+
         server = serverBuilder
-            .addService(new RouteGuideService(features))
+            .addService(new RouteGuideService(repository))
             .intercept(new LatencyInjectionInterceptor())
             .intercept(headerServerInterceptor)
             .build();
@@ -65,6 +64,8 @@ public class RouteGuideServer {
         if (server != null) {
             server.shutdown().awaitTermination(30, TimeUnit.SECONDS);
         }
+        // Close DynamoDB clients
+        DynamoDbClientFactory.close();
     }
 
     /**
@@ -83,28 +84,28 @@ public class RouteGuideServer {
     }
 
     private static class RouteGuideService extends RouteGuideGrpc.RouteGuideImplBase {
-        private final Collection<Feature> features;
+        private final FeatureRepository repository;
 
-        RouteGuideService(Collection<Feature> features) {
-            this.features = features;
+        RouteGuideService(FeatureRepository repository) {
+            this.repository = repository;
         }
 
         @Override
         public void getFeature(Point request, StreamObserver<Feature> responseObserver) {
-            Feature feature = checkFeature(request);
+            Feature feature = repository.getFeature(request);
             responseObserver.onNext(feature);
             responseObserver.onCompleted();
         }
 
-        @Override
-        public void listFeatures(final Rectangle rectangle, StreamObserver<Feature> responseObserver) {
-            for (Feature feature: features) {
-                if (isFeatureInRectangle(feature, rectangle)) {
-                    responseObserver.onNext(feature);
-                }
-            }
-            responseObserver.onCompleted();
-        }
+        // @Override
+        // public void listFeatures(final Rectangle rectangle, StreamObserver<Feature> responseObserver) {
+        //     for (Feature feature: features) {
+        //         if (isFeatureInRectangle(feature, rectangle)) {
+        //             responseObserver.onNext(feature);
+        //         }
+        //     }
+        //     responseObserver.onCompleted();
+        // }
 
         @Override
         public StreamObserver<Point> recordRoute(StreamObserver<RouteSummary> responseObserver) {
@@ -117,7 +118,7 @@ public class RouteGuideServer {
                 @Override
                 public void onNext(Point value) {
                     pointCount++;
-                    if (RouteGuideUtil.exists(checkFeature(value))) {
+                    if (repository.hasFeature(value)) {
                         featureCount++;
                     }
                 }
@@ -148,23 +149,6 @@ public class RouteGuideServer {
                 && lat <= Math.max(lo.getLatitude(), hi.getLatitude())
                 && lon >= Math.min(lo.getLongitude(), hi.getLongitude())
                 && lon <= Math.max(lo.getLongitude(), hi.getLongitude());
-        }
-
-
-        private Feature checkFeature(final Point point) {
-            for (Feature feature: features) {
-                if (feature.getLocation().getLatitude() == point.getLatitude() && feature.getLocation().getLongitude() == point.getLongitude()) {
-                    return feature;
-                }
-            }
-            return Feature.newBuilder()
-                .setName("Unknown")
-                .setLocation(
-                    Point.newBuilder()
-                    .setLatitude(0)
-                    .setLongitude(0)
-                    .build())
-                .build();  
         }
     }
 
