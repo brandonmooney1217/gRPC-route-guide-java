@@ -1,0 +1,6 @@
+target/
+.git/
+.gitignore
+.claude/
+*.md
+.DS_Store

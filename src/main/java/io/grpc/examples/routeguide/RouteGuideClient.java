@@ -147,7 +147,7 @@ public class RouteGuideClient {
 
         // Load the hedging service config
         String hedgingConfigJson = new String(
-            Files.readAllBytes(Paths.get("src/main/java/io/grpc/examples/util/hedging_service_config.json"))
+            Files.readAllBytes(Paths.get("src/main/java/io/grpc/examples/routeguide/util/hedging_service_config.json"))
         );
 
         Map<String, ?> hedgingServiceConfig = new com.google.gson.Gson()
@@ -156,7 +156,8 @@ public class RouteGuideClient {
         ManagedChannel channel = ManagedChannelBuilder.forTarget(target)
             .defaultServiceConfig(hedgingServiceConfig)
             .enableRetry()
-            .usePlaintext()
+            // .usePlaintext() // Commented out for HTTPS/TLS connection to ALB
+            .overrideAuthority("brandon-mooney.com") // Override to match SSL certificate
             .build();
 
         try {
