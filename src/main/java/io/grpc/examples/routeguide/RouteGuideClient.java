@@ -11,15 +11,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.checkerframework.checker.units.qual.h;
 
 import java.util.Random;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.FieldMask;
+import com.google.protobuf.util.FieldMaskUtil;
 
 import io.grpc.Channel;
-import io.grpc.Grpc;
-import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.examples.routeguide.RouteGuideGrpc.RouteGuideBlockingStub;
@@ -53,13 +51,31 @@ public class RouteGuideClient {
                 .setLatitude(latitude)
                 .setLongitude(longitude)
                 .build();
+        
+        FieldMask fieldMask = FieldMaskUtil.fromFieldNumbers(Feature.class,
+            Feature.NAME_FIELD_NUMBER);
 
-        final Feature feature = blockingStub.getFeature(point);
+        info("Sending GetFeature request with field mask: {0}", fieldMask.getPathsList());
+
+        GetFeatureRequest featureRequest = GetFeatureRequest
+            .newBuilder()
+            .setPoint(point)
+            .setFieldMask(fieldMask)
+            .build();
+
+        final Feature feature = blockingStub.getFeature(featureRequest);
+
+        info("Received feature response: {0}", feature);
 
         if (feature.getName().isEmpty()) {
             info("Feature not found at lat={0} lon={1}", latitude, longitude);
         } else {
             info("Found feature: {0}", feature.getName());
+            if (feature.hasLocation()) {
+                info("Response includes location (field mask NOT applied correctly)");
+            } else {
+                info("Response excludes location (field mask applied correctly)");
+            }
         }
     }
 
@@ -156,8 +172,8 @@ public class RouteGuideClient {
         ManagedChannel channel = ManagedChannelBuilder.forTarget(target)
             .defaultServiceConfig(hedgingServiceConfig)
             .enableRetry()
-            // .usePlaintext() // For testing without TLS
-            .overrideAuthority("brandon-mooney.com") // Override to match SSL certificate
+            .usePlaintext() // For testing without TLS
+            // .overrideAuthority("brandon-mooney.com") // Override to match SSL certificate
             .build();
 
         try {

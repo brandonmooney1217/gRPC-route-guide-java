@@ -4,11 +4,14 @@ import ch.hsr.geohash.GeoHash;
 import com.google.protobuf.util.JsonFormat;
 import io.grpc.examples.routeguide.Feature;
 import io.grpc.examples.routeguide.FeatureDatabase;
+import io.grpc.examples.routeguide.factory.AwsClientFactory;
+import io.grpc.examples.routeguide.factory.AwsClientFactoryProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchWriteItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.WriteBatch;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,13 +43,14 @@ public class DataMigration {
     public static void main(String[] args) {
         logger.info("Starting data migration from route_guide_db.json to DynamoDB");
 
+        DynamoDbClient dynamoDbClient = null;
         try {
             // Load features from JSON
             List<Feature> features = loadFeaturesFromJson();
             logger.info("Loaded " + features.size() + " features from JSON");
 
             // Convert to entities and write to DynamoDB
-            migrateFeaturesToDynamoDB(features);
+            dynamoDbClient = migrateFeaturesToDynamoDB(features);
 
             logger.info("Migration completed successfully!");
 
@@ -55,7 +59,9 @@ public class DataMigration {
             e.printStackTrace();
             System.exit(1);
         } finally {
-            DynamoDbClientFactory.close();
+            if (dynamoDbClient != null) {
+                dynamoDbClient.close();
+            }
         }
     }
 
@@ -81,8 +87,12 @@ public class DataMigration {
     /**
      * Convert features to entities and batch write to DynamoDB.
      */
-    private static void migrateFeaturesToDynamoDB(List<Feature> features) {
-        DynamoDbEnhancedClient enhancedClient = DynamoDbClientFactory.getEnhancedClient();
+    private static DynamoDbClient migrateFeaturesToDynamoDB(List<Feature> features) {
+        AwsClientFactory factory = AwsClientFactoryProvider.getFactory();
+        DynamoDbClient dynamoDbClient = factory.createDynamoDbClient();
+        DynamoDbEnhancedClient enhancedClient = DynamoDbEnhancedClient.builder()
+                .dynamoDbClient(dynamoDbClient)
+                .build();
         DynamoDbTable<FeatureEntity> table = enhancedClient.table(
             "RouteGuideFeatures",
             TableSchema.fromBean(FeatureEntity.class)
@@ -108,6 +118,8 @@ public class DataMigration {
 
         // Batch write entities
         writeBatches(enhancedClient, table, entities);
+
+        return dynamoDbClient;
     }
 
     /**

@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/field_mask.proto";
+
 option java_multiple_files = true;
 option java_package = "io.grpc.examples.routeguide";
 option java_outer_classname = "RouteGuideProto";
@@ -9,7 +11,7 @@ package routeguide;
 // RouteGuide service provides geographical feature lookup functionality
 service RouteGuide {
 	// Simple RPC that obtains the feature at a given position.
-	rpc GetFeature(Point) returns (Feature) {}
+	rpc GetFeature(GetFeatureRequest) returns (Feature) {}
 
   // Server-side RPC. Input is rectangle and returns a stream
   // of features with rectangle
@@ -49,5 +51,11 @@ message RouteSummary {
   int32 point_count = 1;
   // number of known features visited
   int32 feature_count = 2;
+}
+
+
+message GetFeatureRequest {
+  Point point = 1;
+  google.protobuf.FieldMask field_mask = 2;
 }
 

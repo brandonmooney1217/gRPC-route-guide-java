@@ -3,12 +3,15 @@ package io.grpc.examples.routeguide.db;
 import ch.hsr.geohash.GeoHash;
 import io.grpc.examples.routeguide.Feature;
 import io.grpc.examples.routeguide.Point;
+import io.grpc.examples.routeguide.factory.AwsClientFactory;
+import io.grpc.examples.routeguide.factory.AwsClientFactoryProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,10 +27,36 @@ public class FeatureRepository {
     private static final int GEOHASH_PRECISION = 6; // 6 chars for partition key (~600m x 1.2km)
 
     private final DynamoDbTable<FeatureEntity> table;
+    private final DynamoDbClient dynamoDbClient;
 
-    public FeatureRepository(DynamoDbEnhancedClient enhancedClient) {
+    /**
+     * Create repository using the default factory from AwsClientFactoryProvider.
+     */
+    public FeatureRepository() {
+        this(AwsClientFactoryProvider.getFactory());
+    }
+
+    /**
+     * Create repository with a specific AWS client factory.
+     * Useful for testing or custom configurations.
+     */
+    public FeatureRepository(AwsClientFactory factory) {
+        this.dynamoDbClient = factory.createDynamoDbClient();
+        DynamoDbEnhancedClient enhancedClient = DynamoDbEnhancedClient.builder()
+                .dynamoDbClient(dynamoDbClient)
+                .build();
         this.table = enhancedClient.table("RouteGuideFeatures",
                                          TableSchema.fromBean(FeatureEntity.class));
+    }
+
+    /**
+     * Close the DynamoDB client.
+     * Should be called when the repository is no longer needed.
+     */
+    public void close() {
+        if (dynamoDbClient != null) {
+            dynamoDbClient.close();
+        }
     }
 
     /**

@@ -6,11 +6,13 @@ import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
+import com.google.protobuf.FieldMask;
+import com.google.protobuf.util.FieldMaskUtil;
+
 import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import io.grpc.examples.routeguide.db.DynamoDbClientFactory;
 import io.grpc.examples.routeguide.db.FeatureRepository;
 import io.grpc.examples.routeguide.header.HeaderServerInterceptor;
 import io.grpc.examples.routeguide.interceptor.LatencyInjectionInterceptor;
@@ -22,6 +24,7 @@ public class RouteGuideServer {
     private final int port;
     private final Server server;
     private final HeaderServerInterceptor headerServerInterceptor;
+    private final FeatureRepository repository;
 
     public RouteGuideServer(int port) throws IOException {
         this(Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create()), port);
@@ -31,8 +34,8 @@ public class RouteGuideServer {
         this.port = port;
         this.headerServerInterceptor = new HeaderServerInterceptor();
 
-        // Create repository for DynamoDB access
-        FeatureRepository repository = DynamoDbClientFactory.createFeatureRepository();
+        // Create repository for DynamoDB access using Abstract Factory pattern
+        this.repository = new FeatureRepository();
 
         server = serverBuilder
             .addService(new RouteGuideService(repository))
@@ -65,7 +68,9 @@ public class RouteGuideServer {
             server.shutdown().awaitTermination(30, TimeUnit.SECONDS);
         }
         // Close DynamoDB clients
-        DynamoDbClientFactory.close();
+        if (repository != null) {
+            repository.close();
+        }
     }
 
     /**
@@ -91,9 +96,23 @@ public class RouteGuideServer {
         }
 
         @Override
-        public void getFeature(Point request, StreamObserver<Feature> responseObserver) {
-            Feature feature = repository.getFeature(request);
-            responseObserver.onNext(feature);
+        public void getFeature(GetFeatureRequest request, StreamObserver<Feature> responseObserver) {
+            Feature feature = repository.getFeature(request.getPoint());
+
+            // If field mask is provided and not empty, apply it
+            if (request.hasFieldMask() && request.getFieldMask().getPathsCount() > 0) {
+                logger.info("Field mask provided with paths: " + request.getFieldMask().getPathsList());
+                Feature.Builder featureWithMaskedFields = Feature.newBuilder();
+                FieldMaskUtil.merge(request.getFieldMask(), feature, featureWithMaskedFields);
+                Feature maskedFeature = featureWithMaskedFields.build();
+                logger.info("Returning masked feature: " + maskedFeature);
+                responseObserver.onNext(maskedFeature);
+            } else {
+                // No field mask, return full feature
+                logger.info("No field mask provided, returning full feature: " + feature);
+                responseObserver.onNext(feature);
+            }
+
             responseObserver.onCompleted();
         }
 
