@@ -135,4 +135,91 @@ public class FeatureRepository {
                         .build())
                 .build();
     }
+
+    /**
+     * Update a feature with the provided data.
+     * Only updates fields specified in the FieldMask.
+     *
+     * Netflix pattern:
+     * - If a field is in the mask with a value, it's updated
+     * - If a field is in the mask but value is empty/null, it's deleted (set to empty string)
+     * - If a field is NOT in the mask, it's unchanged (even if provided in the feature object)
+     *
+     * @param feature The feature data to update (must have a valid location)
+     * @param fieldMask The FieldMask specifying which fields to update
+     * @return The updated feature, or null if the feature doesn't exist at that location
+     */
+    public Feature updateFeature(Feature feature, com.google.protobuf.FieldMask fieldMask) {
+        if (feature == null || !feature.hasLocation()) {
+            logger.warning("Cannot update feature without location");
+            return null;
+        }
+
+        Point location = feature.getLocation();
+
+        // Calculate geohash for lookup
+        double lat = location.getLatitude() / 1e7;
+        double lon = location.getLongitude() / 1e7;
+        String geoHash = GeoHash.geoHashStringWithCharacterPrecision(lat, lon, GEOHASH_PRECISION);
+
+        logger.info("Updating feature at (" + lat + ", " + lon + ") with geohash: " + geoHash);
+        logger.info("FieldMask paths: " + fieldMask.getPathsList());
+
+        // Find existing entity
+        QueryEnhancedRequest queryRequest = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(
+                    Key.builder()
+                        .partitionValue(geoHash)
+                        .build()))
+                .build();
+
+        FeatureEntity existingEntity = null;
+        for (FeatureEntity entity : table.query(queryRequest).items()) {
+            if (entity.getLatitude().equals(location.getLatitude()) &&
+                entity.getLongitude().equals(location.getLongitude())) {
+                existingEntity = entity;
+                break;
+            }
+        }
+
+        if (existingEntity == null) {
+            logger.warning("Feature not found at this location - cannot update");
+            return null;
+        }
+
+        logger.info("Found existing feature: " + existingEntity.getName());
+
+        // Apply field mask updates to the entity
+        // For each path in the mask, update the corresponding field
+        for (String path : fieldMask.getPathsList()) {
+            logger.info("Processing field mask path: " + path);
+
+            switch (path) {
+                case "name":
+                    // If name is in mask, update it (even if empty - that's a delete)
+                    String newName = feature.getName();
+                    logger.info("Updating name from '" + existingEntity.getName() + "' to '" + newName + "'");
+                    existingEntity.setName(newName);
+                    break;
+
+                case "location":
+                case "location.latitude":
+                case "location.longitude":
+                    // Location updates are tricky because they change the partition key
+                    // For now, we don't support location updates (would require delete + insert)
+                    logger.warning("Location updates not supported (would change partition key)");
+                    break;
+
+                default:
+                    logger.warning("Unknown field in mask: " + path);
+            }
+        }
+
+        // Save updated entity back to DynamoDB
+        logger.info("Saving updated entity: " + existingEntity);
+        table.putItem(existingEntity);
+
+        // Return the updated feature
+        return toFeature(existingEntity);
+    }
 }

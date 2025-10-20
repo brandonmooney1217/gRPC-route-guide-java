@@ -126,6 +126,7 @@ public class RouteGuideServer {
         //     responseObserver.onCompleted();
         // }
 
+
         @Override
         public StreamObserver<Point> recordRoute(StreamObserver<RouteSummary> responseObserver) {
             
@@ -156,6 +157,50 @@ public class RouteGuideServer {
                 }
             };
             
+        }
+        @Override
+        public void updateFeature(UpdateFeatureRequest request, StreamObserver<UpdateFeatureResponse> responseObserver) {
+            logger.info("UpdateFeature called");
+
+            // Validate request has feature and update_mask
+            if (!request.hasFeature()) {
+                logger.warning("UpdateFeature request missing feature");
+                responseObserver.onError(new IllegalArgumentException("Feature is required"));
+                return;
+            }
+
+            if (!request.hasUpdateMask() || request.getUpdateMask().getPathsCount() == 0) {
+                logger.warning("UpdateFeature request missing or empty update_mask");
+                responseObserver.onError(new IllegalArgumentException("update_mask is required and must not be empty"));
+                return;
+            }
+
+            Feature requestedFeature = request.getFeature();
+            FieldMask updateMask = request.getUpdateMask();
+
+            logger.info("Updating feature at location (" +
+                requestedFeature.getLocation().getLatitude() + ", " +
+                requestedFeature.getLocation().getLongitude() + ")");
+            logger.info("Update mask paths: " + updateMask.getPathsList());
+
+            // Call repository to perform the update
+            Feature updatedFeature = repository.updateFeature(requestedFeature, updateMask);
+
+            if (updatedFeature == null) {
+                logger.warning("Feature not found or update failed");
+                responseObserver.onError(new IllegalArgumentException("Feature not found at specified location"));
+                return;
+            }
+
+            logger.info("Successfully updated feature: " + updatedFeature.getName());
+
+            // Return the updated feature in the response
+            UpdateFeatureResponse response = UpdateFeatureResponse.newBuilder()
+                .setFeature(updatedFeature)
+                .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
         }
 
         private boolean isFeatureInRectangle(Feature feature, final Rectangle rectangle) {

@@ -99,6 +99,40 @@ public class RouteGuideClient {
         info("ListFeatures completed");
     }
 
+    public void updateFeature(int latitude, int longitude, String newName) {
+        info("*** UpdateFeature: lat={0} lon={1} newName={2}", latitude, longitude, newName);
+
+        Point location = Point.newBuilder()
+                .setLatitude(latitude)
+                .setLongitude(longitude)
+                .build();
+
+        // Build feature with new name and location
+        Feature feature = Feature.newBuilder()
+                .setName(newName)
+                .setLocation(location)
+                .build();
+
+        // Create FieldMask specifying we only want to update the "name" field
+        // This follows Netflix pattern: only fields in mask get updated
+        FieldMask updateMask = FieldMaskUtil.fromFieldNumbers(Feature.class,
+            Feature.NAME_FIELD_NUMBER);
+
+        info("Sending UpdateFeature request with field mask: {0}", updateMask.getPathsList());
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.newBuilder()
+                .setFeature(feature)
+                .setUpdateMask(updateMask)
+                .build();
+
+        try {
+            UpdateFeatureResponse response = blockingStub.updateFeature(request);
+            info("Update successful! Updated feature: {0}", response.getFeature());
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "UpdateFeature failed: {0}", e.getMessage());
+        }
+    }
+
     public void recordRoute(List<Feature> features, int points) throws InterruptedException {
         info("*** RecordRoute");
         final CountDownLatch finishLatch = new CountDownLatch(1);
@@ -178,6 +212,15 @@ public class RouteGuideClient {
 
         try {
             RouteGuideClient client = new RouteGuideClient(channel);
+
+            // Test 1: Get the feature first to see its current state
+            client.getFeature(409146138, -746188906);
+
+            // Test 2: Update the feature's name using FieldMask (Netflix pattern)
+            // Only the "name" field will be updated because that's all we specify in the mask
+            client.updateFeature(409146138, -746188906, "Updated Liberty Bell");
+
+            // Test 3: Get it again to verify the update worked
             client.getFeature(409146138, -746188906);
 
             // client.listFeatures(400000000, -750000000, 420000000, -730000000);

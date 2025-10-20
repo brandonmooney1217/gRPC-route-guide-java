@@ -21,6 +21,7 @@ service RouteGuide {
   // is summary of the route
   rpc RecordRoute(stream Point) returns (RouteSummary) {}
 
+  rpc UpdateFeature(UpdateFeatureRequest) returns (UpdateFeatureResponse){}
 }
 
 // Points are represented as latitude-longitude pairs in the E7 representation
@@ -57,5 +58,15 @@ message RouteSummary {
 message GetFeatureRequest {
   Point point = 1;
   google.protobuf.FieldMask field_mask = 2;
+}
+
+message UpdateFeatureRequest {
+  Feature feature = 1;
+  google.protobuf.FieldMask update_mask = 2;
+
+}
+
+message UpdateFeatureResponse {
+  Feature feature = 1;
 }
 
